@@ -416,8 +416,10 @@
               const titleEl = existing.querySelector('[data-role="title"]');
               if (bodyEl  && bodyEl.innerHTML  !== n.content) bodyEl.innerHTML  = n.content;
               if (titleEl && titleEl.textContent !== n.title)  titleEl.textContent = n.title;
-              existing.style.left = `${n.x}px`;
-              existing.style.top  = `${n.y}px`;
+              if (n.x > 0 || n.y > 0) {
+                existing.style.left = `${n.x}px`;
+                existing.style.top  = `${n.y}px`;
+              }
             }, 50);
           }
           // Always sync local data object
