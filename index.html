@@ -485,7 +485,7 @@
       date: new Date().toLocaleDateString('en-GB')
     };
     renderNote(newNote);
-    save();
+    saveOne(newNote);
     updateUI();
     
     // Auto-select note mới
@@ -537,16 +537,16 @@
     const imgInput   = wrapper.querySelector(`#${imgInputId}`);
 
     // Update Data
-    titleEl.addEventListener('input', () => { data.title = titleEl.textContent.trim(); save(); });
+    titleEl.addEventListener('input', () => { data.title = titleEl.textContent.trim(); saveOne(data); });
     fromEl && fromEl.addEventListener('input', () => { 
       data.from = fromEl.textContent.trim(); 
-      save(); 
+      saveOne(data); 
     });
     toEl && toEl.addEventListener('input', () => { 
       data.to = toEl.textContent.trim(); 
-      save(); 
+      saveOne(data); 
     });
-    bodyEl .addEventListener('input', () => { data.content = bodyEl.innerHTML;         save(); });
+    bodyEl.addEventListener('input', () => { data.content = bodyEl.innerHTML; saveOne(data); });
 
     [titleEl, fromEl, toEl].filter(Boolean).forEach(el => {
       el.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
