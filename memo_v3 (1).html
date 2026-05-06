@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>memo. v7</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Space+Mono:ital,wght@0,400;0,700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --pearl:     #F6F2EF;
+      --midnight:  #363E4F;
+      --harbor:    #B0C0CC;
+      --santorini: #D9DFE3;
+      --sea-green: #8EA39D;
+      --page-bg:   #fffbf7;
+      --sh-sm:     0 10px 30px rgba(54, 62, 79, 0.03);
+      --sh-lg:     0 30px 60px rgba(54, 62, 79, 0.1);
+      --bar-h:     60px;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: var(--page-bg);
+      color: var(--midnight);
+      font-family: 'Playfair Display', serif;
+      min-height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    /* ══════════ TOPBAR ══════════ */
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--bar-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 2000;
+      background: rgba(255, 251, 247, 0.8);
+      backdrop-filter: blur(8px);
+    }
+    .brand { font-size: 1.2rem; font-style: italic; letter-spacing: -0.02em; }
+    .brand b { font-weight: 700; font-style: normal; }
+    .header-actions { display: flex; gap: 1rem; align-items: center; }
+    .btn-tool {
+      background: none; border: 1px solid rgba(54, 62, 79, 0.2);
+      padding: 0.4rem 0.8rem; font-family: 'Space Mono', monospace;
+      font-size: 0.65rem; color: var(--midnight); cursor: pointer;
+      text-transform: lowercase; border-radius: 2px;
+    }
+    .btn-tool:hover { background: var(--midnight); color: var(--pearl); }
+    .btn-danger { color: #E74C3C; border-color: rgba(231, 76, 60, 0.3); }
+    .btn-danger:hover { background: #E74C3C; color: white; border-color: #E74C3C; }
+
+    /* ══════════ FLOATING CONTROLS ══════════ */
+    .floating-controls {
+      position: fixed;
+      top: 15px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 2001;
+      display: none;
+      gap: 12px;
+      animation: slideDown 0.4s ease forwards;
+    }
+    @keyframes slideDown { from { opacity:0; top: -20px; } to { opacity:1; top: 15px; } }
+    .btn-main {
+      background: var(--pearl);
+      border: 1px solid var(--midnight);
+      color: var(--midnight);
+      padding: 10px 24px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .btn-main:hover { background: var(--midnight); color: var(--pearl); }
+    .btn-sub { border-color: rgba(54, 62, 79, 0.3); opacity: 0.7; }
+    .btn-sub:hover { opacity: 1; }
+
+    /* ══════════ CANVAS ══════════ */
+    #canvas {
+      position: relative;
+      padding-top: 120px;
+      min-height: 120vh;
+      width: 100%;
+    }
+
+    /* ══════════ EMPTY STATE ══════════ */
+    #emptyState {
+      position: fixed;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      text-align: center; z-index: 100;
+    }
+    #emptyState h1 {
+      font-size: 3rem; font-style: italic; font-weight: 400;
+      margin-bottom: 2rem; color: var(--midnight);
+    }
+    #emptyState.hidden { display: none; }
+
+    /* ══════════ NOTE WRAPPER & SELECTION ══════════ */
+    .memo-wrapper {
+      position: absolute;
+      cursor: grab;
+      user-select: none;
+      transition: opacity 0.3s ease; /* Bỏ transition box-shadow để drag mượt */
+    }
+    .memo-wrapper:active { cursor: grabbing; }
+    .memo-wrapper.is-dragging .memo { box-shadow: var(--sh-lg); }
+    
+    /* Hiệu ứng khi được chọn (Multi-select) */
+    .memo-wrapper.selected {
+      transform: rotate(var(--rot, 0deg)) translateY(-4px) !important;
+    }
+    .memo-wrapper.selected .memo {
+      box-shadow: 0 16px 40px rgba(54, 62, 79, 0.18);
+    }
+
+    /* ══════════ NOTE CARD ══════════ */
+    .memo {
+      width: 290px;
+      height: 320px; /* Fixed Height */
+      padding: 22px 24px 16px;
+      border: 1px solid rgba(54, 62, 79, 0.08);
+      box-shadow: var(--sh-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      transition: box-shadow 0.3s ease;
+    }
+
+    /* Themes */
+    .theme-harbor    { background: var(--harbor); }
+    .theme-santorini { background: var(--santorini); }
+    .theme-sea-green { background: var(--sea-green); }
+    .theme-pearl     { background: var(--pearl); }
+    .theme-midnight  { background: var(--midnight); color: var(--pearl); }
+
+    /* ── Delete btn ── */
+    .delete-btn {
+      position: absolute;
+      top: 10px; right: 14px;
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      opacity: 0;
+      transition: opacity 0.2s;
+      background: none; border: none;
+      font-size: 1.1rem;
+      color: inherit;
+      z-index: 5;
+    }
+    .memo-wrapper:hover .delete-btn { opacity: 0.3; }
+    .delete-btn:hover { opacity: 1 !important; }
+
+    /* ── Editable Header ── */
+    .memo-header {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-size: 1.05rem;
+      border-bottom: 1px solid rgba(54, 62, 79, 0.12);
+      padding-bottom: 7px;
+      margin-bottom: 10px;
+      text-transform: lowercase;
+      outline: none;
+      cursor: text;
+      min-height: 1.4em;
+      word-break: break-word;
+      flex-shrink: 0;
+    }
+    .theme-midnight .memo-header { border-bottom-color: rgba(246, 242, 239, 0.2); }
+    .memo-header:focus { border-bottom-style: dashed; border-bottom-color: rgba(54, 62, 79, 0.35); }
+    .theme-midnight .memo-header:focus { border-bottom-color: rgba(246, 242, 239, 0.5); }
+    .memo-header:empty::before { content: 'title...'; opacity: 0.3; pointer-events: none; }
+
+    /* ── From / To row ── */
+    .memo-fromto {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.62rem;
+      text-transform: lowercase;
+      opacity: 0.6;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .ft-label { opacity: 0.7; flex-shrink: 0; }
+    .ft-sep { opacity: 0.5; flex-shrink: 0; }
+    .ft-field {
+      outline: none;
+      cursor: text;
+      min-width: 40px;
+      max-width: 90px;
+      border-bottom: 1px dashed transparent;
+      padding-bottom: 1px;
+      word-break: break-all;
+    }
+    .ft-field:focus { border-bottom-color: rgba(54, 62, 79, 0.4); opacity: 1; }
+    .theme-midnight .ft-field:focus { border-bottom-color: rgba(246, 242, 239, 0.5); }
+    .ft-field:empty::before { content: '—'; opacity: 0.5; pointer-events: none; }
+
+    /* ── Body (contenteditable) ── */
+    .memo-body {
+      flex: 1;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.65;
+      outline: none;
+      cursor: text;
+      overflow-y: auto;
+      word-break: break-word;
+      /* Hiệu ứng fade mờ dần nội dung bị tràn ở dưới */
+      -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent 100%);
+      mask-image: linear-gradient(180deg, #000 80%, transparent 100%);
+      padding-bottom: 15px; 
+    }
+    .memo-body::-webkit-scrollbar { width: 3px; }
+    .memo-body::-webkit-scrollbar-thumb { background: rgba(54, 62, 79, 0.15); }
+    .memo-body:empty::before { content: attr(data-placeholder); opacity: 0.3; pointer-events: none; display: block; }
+    .memo-body a { color: inherit; text-decoration: underline; text-underline-offset: 2px; opacity: 0.75; word-break: break-all; }
+    .memo-body a:hover { opacity: 1; }
+    .memo-body img { max-width: 100%; max-height: 120px; object-fit: cover; display: block; margin-top: 6px; border-radius: 1px; cursor: default; }
+
+    /* ── Footer bar (date + icons) ── */
+    .memo-footer-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(54, 62, 79, 0.08);
+      flex-shrink: 0;
+      gap: 6px;
+    }
+    .theme-midnight .memo-footer-bar { border-top-color: rgba(246, 242, 239, 0.12); }
+
+    .memo-date {
+      font-family: 'Space Mono', monospace; font-size: 0.6rem;
+      opacity: 0.4; text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex: 1;
+    }
+
+    .footer-icons {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .memo-wrapper:hover .footer-icons { opacity: 1; }
+
+    .fi-btn {
+      background: none; border: none;
+      color: inherit; cursor: pointer;
+      opacity: 0.4; font-size: 0.75rem;
+      padding: 2px 3px; line-height: 1;
+      transition: opacity 0.15s;
+      display: flex; align-items: center;
+    }
+    .fi-btn:hover { opacity: 0.9; }
+    .fi-btn label { cursor: pointer; display: flex; align-items: center; }
+
+    /* ══════════ TRASH ══════════ */
+    #trashZone {
+      position: fixed;
+      bottom: 30px; right: 30px;
+      width: 60px; height: 60px;
+      border-radius: 50%; background: var(--pearl); border: 1px solid var(--midnight);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 5000; opacity: 0; transform: scale(0.5);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none; box-shadow: var(--sh-lg);
+    }
+    #trashZone.visible { opacity: 1; transform: scale(1); pointer-events: all; }
+    #trashZone.active { background: #E74C3C; border-color: #E74C3C; transform: scale(1.3); }
+    #trashZone .icon { font-size: 1.5rem; }
+    #trashZone.active .icon { color: white; }
+
+    /* ══════════ LINK POPUP ══════════ */
+    #linkPopup {
+      position: fixed; z-index: 6000; background: var(--pearl); border: 1px solid var(--midnight);
+      padding: 14px 16px; box-shadow: var(--sh-lg); display: none;
+      flex-direction: column; gap: 8px; min-width: 260px;
+    }
+    #linkPopup.visible { display: flex; }
+    #linkPopup label { font-family: 'Space Mono', monospace; font-size: 0.62rem; opacity: 0.6; }
+    #linkPopup input { border: none; border-bottom: 1px solid rgba(54,62,79,0.3); background: transparent; font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--midnight); outline: none; padding: 4px 0; width: 100%; }
+    #linkPopup input:focus { border-bottom-color: var(--midnight); }
+    .popup-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+    .popup-actions button { font-family: 'Space Mono', monospace; font-size: 0.62rem; padding: 5px 12px; cursor: pointer; border-radius: 2px; }
+    #popupCancel { background: none; border: 1px solid rgba(54,62,79,0.2); color: var(--midnight); }
+    #popupInsert { background: var(--midnight); border: 1px solid var(--midnight); color: var(--pearl); }
+
+    /* ══════════ TOAST ══════════ */
+    #toast {
+      position: fixed; bottom: 30px; left: 30px;
+      background: var(--midnight); color: var(--pearl);
+      padding: 8px 16px; font-family: 'Space Mono', monospace;
+      font-size: 0.7rem; border-radius: 2px;
+      opacity: 0; transition: opacity 0.3s; z-index: 7000;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="brand"><b>memo</b>.</div>
+  <div class="header-actions">
+    <button class="btn-tool btn-danger" onclick="deleteAllNotes()">delete all</button>
+    <button class="btn-tool" onclick="exportNotes()">export json</button>
+    <button class="btn-tool" onclick="document.getElementById('importInput').click()">import</button>
+    <input type="file" id="importInput" style="display:none" onchange="importNotes(this)" accept=".json">
+  </div>
+</header>
+
+<div class="floating-controls" id="floatingControls">
+  <button class="btn-main btn-sub" onclick="createNote('prompt')">random prompts</button>
+  <button class="btn-main" onclick="createNote('blank')">+ new entry</button>
+</div>
+
+<main id="canvas">
+  <div id="emptyState">
+    <h1>What's in your mind?</h1>
+    <button class="btn-main" onclick="createNote('blank')">+ NEW ENTRY</button>
+    <p style="font-family: 'Space Mono'; font-size: 0.7rem; opacity: 0.5; margin-top: 20px;">
+      Tip: Hold <b>Shift</b> + Click to select multiple notes
+    </p>
+  </div>
+</main>
+
+<div id="linkPopup">
+  <label>link text</label>
+  <input type="text" id="linkText" placeholder="display text">
+  <label style="margin-top:4px">url</label>
+  <input type="url" id="linkUrl" placeholder="https://...">
+  <div class="popup-actions">
+    <button id="popupCancel" onclick="closeLinkPopup()">cancel</button>
+    <button id="popupInsert" onclick="confirmInsertLink()">insert</button>
+  </div>
+</div>
+
+<div id="trashZone"><span class="icon">🗑</span></div>
+<div id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+  import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBKGyI4DN5nsDRIDZ31Ud-bIDipguD_qN0",
+    authDomain: "meomeonote.firebaseapp.com",
+    projectId: "meomeonote",
+    storageBucket: "meomeonote.firebasestorage.app",
+    messagingSenderId: "992146797835",
+    appId: "1:992146797835:web:de9efbad180261fb3e9e0e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const notesCol = collection(db, 'notes');
+  const THEMES    = ['harbor', 'santorini', 'sea-green', 'pearl', 'midnight'];
+  const PROMPTS   = [
+    "today, i feel —", "today, i learned —", "today, i accept —",
+    "a memo for self —", "affirmation —", "today i let go of —"
+  ];
+  const ROTATIONS = [-4, -2, 0, 2, 4];
+
+  let notes = [];
+  let savedRange = null;
+  let activeLinkBody = null;
+  
+  // State for Drag & Selection
+  let zIndexCounter = 10;
+  let selectedNotes = new Set(); 
+
+  const canvas    = document.getElementById('canvas');
+  const emptyState = document.getElementById('emptyState');
+  const controls  = document.getElementById('floatingControls');
+  const trashZone = document.getElementById('trashZone');
+
+  /* ═══════════════ INIT — Firestore real-time sync ═══════════════ */
+  window.onload = () => {
+    onSnapshot(notesCol, (snapshot) => {
+      const firestoreNotes = [];
+      snapshot.forEach(docSnap => firestoreNotes.push(docSnap.data()));
+
+      // Remove cards no longer in Firestore
+      notes.forEach(existing => {
+        if (!firestoreNotes.find(n => n.id === existing.id)) {
+          const el = document.getElementById(`note-${existing.id}`);
+          if (el) el.remove();
+        }
+      });
+
+      firestoreNotes.forEach(n => {
+        const existing = document.getElementById(`note-${n.id}`);
+        if (!existing) {
+          // New note from another client → render it
+          if (n.zIndex > zIndexCounter) zIndexCounter = n.zIndex;
+          renderNote(n);
+        } else {
+          // Note already on screen — only update content if user is NOT focused on it
+          const focused = existing.contains(document.activeElement);
+          if (!focused) {
+            setTimeout(() => {
+              const bodyEl  = existing.querySelector('[data-role="body"]');
+              const titleEl = existing.querySelector('[data-role="title"]');
+              if (bodyEl  && bodyEl.innerHTML  !== n.content) bodyEl.innerHTML  = n.content;
+              if (titleEl && titleEl.textContent !== n.title)  titleEl.textContent = n.title;
+              existing.style.left = `${n.x}px`;
+              existing.style.top  = `${n.y}px`;
+            }, 50);
+          }
+          // Always sync local data object
+          const idx = notes.findIndex(x => x.id === n.id);
+          if (idx !== -1) notes[idx] = { ...notes[idx], ...n };
+        }
+      });
+
+      // Merge firestoreNotes into local notes array carefully
+      firestoreNotes.forEach(fn => {
+        const idx = notes.findIndex(x => x.id === fn.id);
+        if (idx === -1) notes.push(fn);
+        else {
+          const el = document.getElementById(`note-${fn.id}`);
+          const focused = el && el.contains(document.activeElement);
+          if (!focused) notes[idx] = fn;
+        }
+      });
+      // Remove deleted
+      notes = notes.filter(n => firestoreNotes.find(fn => fn.id === n.id));
+      updateUI();
+    });
+  };
+
+  // Bỏ chọn khi click ra background
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.memo-wrapper') && !e.target.closest('.header') && !e.target.closest('.floating-controls')) {
+      clearSelection();
+    }
+  });
+
+  function clearSelection() {
+    document.querySelectorAll('.memo-wrapper.selected').forEach(el => el.classList.remove('selected'));
+    selectedNotes.clear();
+  }
+
+  function updateUI() {
+    const hasNotes = notes.length > 0;
+    emptyState.classList.toggle('hidden', hasNotes);
+    controls.style.display = hasNotes ? 'flex' : 'none';
+    let maxY = 1000;
+    notes.forEach(n => { if (n.y + 450 > maxY) maxY = n.y + 450; });
+    canvas.style.minHeight = maxY + 'px';
+  }
+
+  /* ═══════════════ CREATE ═══════════════ */
+  function createNote(type) {
+    const theme    = THEMES[Math.floor(Math.random() * THEMES.length)];
+    const rotation = ROTATIONS[Math.floor(Math.random() * ROTATIONS.length)];
+    const spawnX   = Math.random() * (window.innerWidth - 360) + 50;
+    const spawnY   = window.scrollY + 150 + (Math.random() * 100);
+    zIndexCounter++;
+
+    const newNote = {
+      id:      Date.now(),
+      title:   type === 'blank' ? 'new entry' : PROMPTS[Math.floor(Math.random() * PROMPTS.length)],
+      from:    '',
+      to:      '',
+      content: '',
+      theme,
+      rotation,
+      x: spawnX,
+      y: spawnY,
+      zIndex: zIndexCounter,
+      date: new Date().toLocaleDateString('en-GB')
+    };
+    renderNote(newNote);
+    save();
+    updateUI();
+    
+    // Auto-select note mới
+    clearSelection();
+    selectedNotes.add(newNote.id);
+    document.getElementById(`note-${newNote.id}`).classList.add('selected');
+  }
+
+  /* ═══════════════ RENDER ═══════════════ */
+  function renderNote(data) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `memo-wrapper`;
+    wrapper.id = `note-${data.id}`;
+    wrapper.style.cssText = `left:${data.x}px; top:${data.y}px; --rot:${data.rotation}deg; transform:rotate(${data.rotation}deg); z-index:${data.zIndex || 10};`;
+
+    const imgInputId = `img-${data.id}`;
+
+    wrapper.innerHTML = `
+      <div class="memo theme-${data.theme}">
+        <button class="delete-btn" title="remove">✕</button>
+        <div class="memo-header" contenteditable="true" spellcheck="false" data-role="title">${escapeHtml(data.title)}</div>
+        <div class="memo-fromto" style="${data.from || data.to ? '' : 'display:none'}">
+          <span class="ft-label">from</span>
+          <span class="ft-field" contenteditable="true" spellcheck="false" data-role="from">${escapeHtml(data.from)}</span>
+          <span class="ft-sep">→</span>
+          <span class="ft-label">to</span>
+          <span class="ft-field" contenteditable="true" spellcheck="false" data-role="to">${escapeHtml(data.to)}</span>
+        </div>
+        <div class="memo-body" contenteditable="true" data-placeholder="Start typing..." data-role="body">${data.content || ''}</div>
+        <div class="memo-footer-bar">
+          <span class="memo-date">${data.date}</span>
+          <div class="footer-icons">
+            <button class="fi-btn" data-action="link" title="Insert link">⌁</button>
+            <label class="fi-btn" title="Attach image">
+              ⊞
+              <input type="file" id="${imgInputId}" accept="image/*" style="display:none">
+            </label>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const titleEl    = wrapper.querySelector('[data-role="title"]');
+    const fromEl     = wrapper.querySelector('[data-role="from"]');
+    const toEl       = wrapper.querySelector('[data-role="to"]');
+    const bodyEl     = wrapper.querySelector('[data-role="body"]');
+    const deleteBtn  = wrapper.querySelector('.delete-btn');
+    const linkBtn    = wrapper.querySelector('[data-action="link"]');
+    const imgInput   = wrapper.querySelector(`#${imgInputId}`);
+
+    // Update Data
+    titleEl.addEventListener('input', () => { data.title = titleEl.textContent.trim(); save(); });
+    fromEl && fromEl.addEventListener('input', () => { 
+      data.from = fromEl.textContent.trim(); 
+      save(); 
+    });
+    toEl && toEl.addEventListener('input', () => { 
+      data.to = toEl.textContent.trim(); 
+      save(); 
+    });
+    bodyEl .addEventListener('input', () => { data.content = bodyEl.innerHTML;         save(); });
+
+    [titleEl, fromEl, toEl].filter(Boolean).forEach(el => {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    });
+
+    deleteBtn.addEventListener('click', () => removeNote(data.id));
+
+    linkBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      activeLinkBody = bodyEl;
+      savedRange = saveSelection();
+      openLinkPopup(e.clientX, e.clientY);
+    });
+
+    imgInput.addEventListener('change', () => {
+      const file = imgInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        bodyEl.focus();
+        const img = document.createElement('img');
+        img.src = ev.target.result;
+        img.draggable = false;
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && bodyEl.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(img);
+          range.setStartAfter(img);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else {
+          bodyEl.appendChild(img);
+        }
+        data.content = bodyEl.innerHTML;
+        save();
+        imgInput.value = '';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    /* ══ MULTI-DRAG LOGIC ══ */
+    let isDragging = false;
+    let mouseStartX, mouseStartY;
+    let draggingItems = [];
+
+    wrapper.addEventListener('mousedown', (e) => {
+      if (e.target.isContentEditable || e.target.tagName === 'BUTTON' || 
+          e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL' || 
+          e.target.tagName === 'IMG' || e.target.tagName === 'A') return;
+
+      // Bring to front
+      zIndexCounter++;
+      wrapper.style.zIndex = zIndexCounter;
+      data.zIndex = zIndexCounter;
+      save();
+
+      // Multi-select with Shift
+      if (e.shiftKey) {
+        if (selectedNotes.has(data.id)) {
+          selectedNotes.delete(data.id);
+          wrapper.classList.remove('selected');
+        } else {
+          selectedNotes.add(data.id);
+          wrapper.classList.add('selected');
+        }
+        return; // Don't drag when just toggling
+      }
+
+      // If clicked note is NOT in selection, select ONLY it
+      if (!selectedNotes.has(data.id)) {
+        clearSelection();
+        selectedNotes.add(data.id);
+        wrapper.classList.add('selected');
+      }
+
+      isDragging = true;
+      trashZone.classList.add('visible');
+      
+      mouseStartX = e.pageX;
+      mouseStartY = e.pageY;
+
+      // Prepare all selected items for dragging
+      draggingItems = [];
+      selectedNotes.forEach(id => {
+        let el = document.getElementById(`note-${id}`);
+        let n = notes.find(item => item.id === id);
+        if (el && n) {
+          // Bring all selected to front
+          zIndexCounter++;
+          el.style.zIndex = zIndexCounter;
+          n.zIndex = zIndexCounter;
+          
+          el.classList.add('is-dragging');
+          draggingItems.push({ el, note: n, startLeft: n.x, startTop: n.y });
+        }
+      });
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup',   onMouseUp);
+    });
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      const dx = e.pageX - mouseStartX;
+      const dy = e.pageY - mouseStartY;
+
+      draggingItems.forEach(item => {
+        item.el.style.left = `${item.startLeft + dx}px`;
+        item.el.style.top  = `${item.startTop + dy}px`;
+      });
+
+      const tr = trashZone.getBoundingClientRect();
+      const over = e.clientX > tr.left && e.clientX < tr.right &&
+                   e.clientY > tr.top  && e.clientY < tr.bottom;
+      trashZone.classList.toggle('active', over);
+      
+      draggingItems.forEach(item => {
+        item.el.style.opacity = over ? '0.5' : '1';
+      });
+    }
+
+    function onMouseUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      
+      draggingItems.forEach(item => item.el.classList.remove('is-dragging'));
+
+      const tr = trashZone.getBoundingClientRect();
+      const overTrash = e.clientX > tr.left && e.clientX < tr.right &&
+                        e.clientY > tr.top  && e.clientY < tr.bottom;
+
+      if (overTrash) {
+        selectedNotes.forEach(id => removeNote(id));
+        selectedNotes.clear();
+      } else {
+        draggingItems.forEach(item => {
+          item.note.x = parseInt(item.el.style.left);
+          item.note.y = parseInt(item.el.style.top);
+        });
+        save(); updateUI();
+      }
+      
+      trashZone.classList.remove('visible', 'active');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup',   onMouseUp);
+    }
+
+    notes.push(data);
+    canvas.appendChild(wrapper);
+  }
+
+  /* ═══════════════ REMOVE & DELETE ALL ═══════════════ */
+  function removeNote(id) {
+    const el = document.getElementById(`note-${id}`);
+    if (!el) return;
+    const t = el.style.transform;
+    el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    el.style.opacity    = '0';
+    el.style.transform  = `${t} scale(0.9)`;
+    setTimeout(() => {
+      el.remove();
+      notes = notes.filter(n => n.id !== id);
+      selectedNotes.delete(id);
+      deleteDoc(doc(notesCol, String(id)));
+      updateUI();
+    }, 300);
+  }
+
+  function deleteAllNotes() {
+    if(notes.length === 0) return;
+    if(confirm("Are you sure you want to delete ALL notes? This cannot be undone.")) {
+      notes.forEach(n => deleteDoc(doc(notesCol, String(n.id))));
+      notes = [];
+      document.querySelectorAll('.memo-wrapper').forEach(el => el.remove());
+      selectedNotes.clear();
+      updateUI();
+      showToast("All notes cleared.");
+    }
+  }
+
+  /* ═══════════════ POPUP & UTILS ═══════════════ */
+  function openLinkPopup(cx, cy) {
+    const popup = document.getElementById('linkPopup');
+    document.getElementById('linkText').value = '';
+    document.getElementById('linkUrl').value  = '';
+    let left = cx + 8; let top  = cy + 8;
+    if (left + 280 > window.innerWidth)  left = window.innerWidth  - 285;
+    if (top  + 160 > window.innerHeight) top  = window.innerHeight - 165;
+    popup.style.left = `${left}px`; popup.style.top  = `${top}px`;
+    popup.classList.add('visible');
+    document.getElementById('linkText').focus();
+  }
+  function closeLinkPopup() { document.getElementById('linkPopup').classList.remove('visible'); activeLinkBody = null; savedRange = null; }
+  
+  function confirmInsertLink() {
+    const text = document.getElementById('linkText').value.trim();
+    const url  = document.getElementById('linkUrl').value.trim();
+    if (!url) { closeLinkPopup(); return; }
+    const anchor = document.createElement('a');
+    anchor.href = url.startsWith('http') ? url : 'https://' + url;
+    anchor.target = '_blank'; anchor.rel = 'noopener noreferrer';
+    anchor.textContent = text || url;
+
+    if (activeLinkBody) {
+      activeLinkBody.focus();
+      restoreSelection(savedRange);
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents(); range.insertNode(anchor);
+        range.setStartAfter(anchor); range.collapse(true);
+        sel.removeAllRanges(); sel.addRange(range);
+      } else activeLinkBody.appendChild(anchor);
+      const noteId = parseInt(activeLinkBody.closest('.memo-wrapper').id.replace('note-', ''));
+      const note = notes.find(n => n.id === noteId);
+      if (note) { note.content = activeLinkBody.innerHTML; save(); }
+    }
+    closeLinkPopup();
+  }
+
+  document.addEventListener('mousedown', (e) => {
+    const popup = document.getElementById('linkPopup');
+    if (!popup.contains(e.target) && !e.target.closest('[data-action="link"]')) closeLinkPopup();
+  });
+  document.getElementById('linkUrl').addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmInsertLink();
+    if (e.key === 'Escape') closeLinkPopup();
+  });
+
+  function saveSelection() { const sel = window.getSelection(); return sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null; }
+  function restoreSelection(range) { if (!range) return; const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+  function save() {
+    const unique = Array.from(new Map(notes.map(n => [n.id, n])).values());
+    unique.forEach(n => setDoc(doc(notesCol, String(n.id)), n));
+  }
+  function saveOne(n) {
+    setDoc(doc(notesCol, String(n.id)), n);
+  }
+  function exportNotes() {
+    const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(notes));
+    const a = document.createElement('a'); a.setAttribute("href", str); a.setAttribute("download", "memos_backup.json");
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  function importNotes(input) {
+    const file = input.files[0]; const reader = new FileReader();
+    reader.onload = e => { JSON.parse(e.target.result).forEach(n => renderNote(n)); save(); updateUI(); };
+    reader.readAsText(file);
+  }
+  function escapeHtml(str) { return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function showToast(msg) {
+    const t = document.getElementById('toast'); t.innerText = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+  // Expose functions used in HTML onclick attributes
+  window.createNote      = createNote;
+  window.deleteAllNotes  = deleteAllNotes;
+  window.exportNotes     = exportNotes;
+  window.importNotes     = importNotes;
+  window.closeLinkPopup  = closeLinkPopup;
+  window.confirmInsertLink = confirmInsertLink;
+</script>
+</body>
+</html>
