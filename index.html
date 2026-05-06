@@ -411,13 +411,14 @@
           // Note already on screen — only update content if user is NOT focused on it
           const focused = existing.contains(document.activeElement);
           if (!focused) {
-            const bodyEl  = existing.querySelector('[data-role="body"]');
-            const titleEl = existing.querySelector('[data-role="title"]');
-            if (bodyEl  && bodyEl.innerHTML  !== n.content) bodyEl.innerHTML  = n.content;
-            if (titleEl && titleEl.textContent !== n.title)  titleEl.textContent = n.title;
-            // Update position if moved from another client
-            existing.style.left = `${n.x}px`;
-            existing.style.top  = `${n.y}px`;
+            setTimeout(() => {
+              const bodyEl  = existing.querySelector('[data-role="body"]');
+              const titleEl = existing.querySelector('[data-role="title"]');
+              if (bodyEl  && bodyEl.innerHTML  !== n.content) bodyEl.innerHTML  = n.content;
+              if (titleEl && titleEl.textContent !== n.title)  titleEl.textContent = n.title;
+              existing.style.left = `${n.x}px`;
+              existing.style.top  = `${n.y}px`;
+            }, 50);
           }
           // Always sync local data object
           const idx = notes.findIndex(x => x.id === n.id);
@@ -425,7 +426,18 @@
         }
       });
 
-      notes = firestoreNotes;
+      // Merge firestoreNotes into local notes array carefully
+      firestoreNotes.forEach(fn => {
+        const idx = notes.findIndex(x => x.id === fn.id);
+        if (idx === -1) notes.push(fn);
+        else {
+          const el = document.getElementById(`note-${fn.id}`);
+          const focused = el && el.contains(document.activeElement);
+          if (!focused) notes[idx] = fn;
+        }
+      });
+      // Remove deleted
+      notes = notes.filter(n => firestoreNotes.find(fn => fn.id === n.id));
       updateUI();
     });
   };
@@ -502,7 +514,7 @@
           <span class="ft-label">to</span>
           <span class="ft-field" contenteditable="true" spellcheck="false" data-role="to">${escapeHtml(data.to)}</span>
         </div>
-        <div class="memo-body" contenteditable="true" data-placeholder="Start typing..." data-role="body">${data.content}</div>
+        <div class="memo-body" contenteditable="true" data-placeholder="Start typing..." data-role="body">${data.content || ''}</div>
         <div class="memo-footer-bar">
           <span class="memo-date">${data.date}</span>
           <div class="footer-icons">
