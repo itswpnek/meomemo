@@ -390,11 +390,10 @@
   /* ═══════════════ INIT — Firestore real-time sync ═══════════════ */
   window.onload = () => {
     onSnapshot(notesCol, (snapshot) => {
-      // Rebuild notes array from Firestore
       const firestoreNotes = [];
       snapshot.forEach(docSnap => firestoreNotes.push(docSnap.data()));
 
-      // Remove cards that no longer exist
+      // Remove cards no longer in Firestore
       notes.forEach(existing => {
         if (!firestoreNotes.find(n => n.id === existing.id)) {
           const el = document.getElementById(`note-${existing.id}`);
@@ -402,11 +401,27 @@
         }
       });
 
-      // Add cards that are new
       firestoreNotes.forEach(n => {
-        if (!notes.find(existing => existing.id === n.id)) {
+        const existing = document.getElementById(`note-${n.id}`);
+        if (!existing) {
+          // New note from another client → render it
           if (n.zIndex > zIndexCounter) zIndexCounter = n.zIndex;
           renderNote(n);
+        } else {
+          // Note already on screen — only update content if user is NOT focused on it
+          const focused = existing.contains(document.activeElement);
+          if (!focused) {
+            const bodyEl  = existing.querySelector('[data-role="body"]');
+            const titleEl = existing.querySelector('[data-role="title"]');
+            if (bodyEl  && bodyEl.innerHTML  !== n.content) bodyEl.innerHTML  = n.content;
+            if (titleEl && titleEl.textContent !== n.title)  titleEl.textContent = n.title;
+            // Update position if moved from another client
+            existing.style.left = `${n.x}px`;
+            existing.style.top  = `${n.y}px`;
+          }
+          // Always sync local data object
+          const idx = notes.findIndex(x => x.id === n.id);
+          if (idx !== -1) notes[idx] = { ...notes[idx], ...n };
         }
       });
 
