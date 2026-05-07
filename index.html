@@ -786,8 +786,12 @@
     const unique = Array.from(new Map(notes.map(n => [n.id, n])).values());
     unique.forEach(n => setDoc(doc(notesCol, String(n.id)), n));
   }
+  const saveTimers = {};
   function saveOne(n) {
-    setDoc(doc(notesCol, String(n.id)), n);
+    clearTimeout(saveTimers[n.id]);
+    saveTimers[n.id] = setTimeout(() => {
+      setDoc(doc(notesCol, String(n.id)), n);
+    }, 1000);
   }
   function exportNotes() {
     const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(notes));
